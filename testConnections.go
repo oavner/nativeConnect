@@ -8,19 +8,23 @@ import (
   "strings"
 )
 
-func sendHttpReq(url string, method string, wg *sync.WaitGroup, success *chan bool) {
+func sendHttpReq(url string, method string, wg *sync.WaitGroup, connectionStateChannel *chan string) {
   client := &http.Client {
   }
-  req, err := http.NewRequest(method, url, nil)
 
+  req, err := http.NewRequest(method, url, nil)
   if err != nil {
     fmt.Println(err)
+    *connectionStateChannel <- "url:" + url + "\nconnectionState: disconnected\nerror: " + err.Error() + "\n\n"
+    wg.Done()
     return
   }
 
   res, err := client.Do(req)
   if err != nil {
     fmt.Println(err)
+    *connectionStateChannel <- "url:" + url + "\nconnectionState: disconnected\nerror: " + err.Error() + "\n\n"
+    wg.Done()
     return
   }
   defer res.Body.Close()
@@ -28,40 +32,58 @@ func sendHttpReq(url string, method string, wg *sync.WaitGroup, success *chan bo
   body, err := ioutil.ReadAll(res.Body)
   if err != nil {
     fmt.Println(err)
+    *connectionStateChannel <- "url:" + url + "\nconnectionState: disconnected\nerror: " + err.Error() + "\n\n"
+    wg.Done()
     return
   }
-  fmt.Println(string(body))
   
-  if strings.Contains(string(body), "EOF") { 
-    *success <- false
+  if strings.Contains(string(body), "EOF") || res.StatusCode > 400 { 
+    *connectionStateChannel <- "url:" + url + "\nconnectionState: disconnected\nerror: " + string(body) + "\n\n"
   } else {
-    *success <- true
+    *connectionStateChannel <- "url: " + url + "\nconnectionState: connected\n\n"
+    wg.Done()
+    return
   }
 
   wg.Done()
+  return
 }
 
-func main() {
-  url := "http://10.155.0.113:30606/"
-  method := "GET"
-  maxConnections := 10000
-  connectionsCounter := 0
+func testConnections(url string, method string, maxConnections int) (connectionsCounter int){
+  connectionsCounter = 0
 
   var wg sync.WaitGroup
   wg.Add(maxConnections)
 
-  channel := make(chan bool)
+  connectionStateChannel := make(chan string)
 
   for conn := 0; conn < maxConnections; conn++ {
-    go sendHttpReq(url, method, &wg, &channel)
-    data := <- channel
-    fmt.Println(data)
-    if data {
+    go sendHttpReq(url, method, &wg, &connectionStateChannel)
+    connectionState := <- connectionStateChannel
+    fmt.Println(connectionState)
+    if !strings.Contains(connectionState, "disconnected") {
       connectionsCounter++ 
+    } else {
+      fmt.Println("Failed to create new connections stopping session creations")
+      break
     }
   }
-  wg.Wait()
+  return 
+}
 
-  fmt.Println(connectionsCounter)
+var url  string
+var method string
+var maxConnections int
+
+func main() {
+  url = "http://10.155.0.113:22172/"
+  method = "GET"
+  maxConnections = 10
+  
+  if testConnections(url, method, maxConnections) == maxConnections {
+    fmt.Println("Successfully reached the max ammount of connections")
+  } else {
+    fmt.Println("Failed to reached the max ammount of connections. Check the SDN state")
+  }
 }
   
