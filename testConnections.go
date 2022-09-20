@@ -5,9 +5,10 @@ import (
   "net/http"
   "io/ioutil"
   "sync"
+  "strings"
 )
 
-func sendHttpReq(url string, method string, wg *sync.WaitGroup) {
+func sendHttpReq(url string, method string, wg *sync.WaitGroup, success *chan bool) {
   client := &http.Client {
   }
   req, err := http.NewRequest(method, url, nil)
@@ -30,20 +31,37 @@ func sendHttpReq(url string, method string, wg *sync.WaitGroup) {
     return
   }
   fmt.Println(string(body))
+  
+  if strings.Contains(string(body), "EOF") { 
+    *success <- false
+  } else {
+    *success <- true
+  }
 
   wg.Done()
 }
 
 func main() {
-  var wg sync.WaitGroup
-  wg.Add(2)
-
   url := "http://10.155.0.113:30606/"
   method := "GET"
-  maxConnections := 1000
+  maxConnections := 10000
+  connectionsCounter := 0
+
+  var wg sync.WaitGroup
+  wg.Add(maxConnections)
+
+  channel := make(chan bool)
 
   for conn := 0; conn < maxConnections; conn++ {
-    go sendHttpReq(url, method, &wg)    
+    go sendHttpReq(url, method, &wg, &channel)
+    data := <- channel
+    fmt.Println(data)
+    if data {
+      connectionsCounter++ 
+    }
   }
+  wg.Wait()
+
+  fmt.Println(connectionsCounter)
 }
   
