@@ -55,7 +55,7 @@ func testConnections(url string, method string, maxConnections int) (connections
   connectionDataChannel := make(chan string)
 
   for conn := 0; conn < maxConnections; conn++ {
-	wg.Add(1)
+	  wg.Add(1)
     go sendHttpReq(url, method, &wg, &connectionDataChannel)
 	  go log(&connectionDataChannel)
   }
