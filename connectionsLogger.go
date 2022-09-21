@@ -7,6 +7,7 @@ import (
   "sync"
   "strings"
   "time"
+  "encoding/json"
 )
 
 var urlsSlice []string
@@ -19,20 +20,19 @@ var connectionDataChannel = make(chan connectionData)
 var connectionsReport string
 
 type connectionData struct {
-  url string
-  connectionState string
-  err string
-  timeStamp string
+  Url string `json:"url"`
+  ConnectionState string `json:"connection_state"`
+  Err string `json:"error"`
+  TimeStamp string `json:"timestamp"`
 }
 
-func (connectionData *connectionData) getConnectionData() (connectionDataString string){
-  connectionDataString = "url: " + connectionData.url + "\nconnectionState: " + connectionData.connectionState + "\nerror: " + connectionData.err + "\ntimeStamp: " + connectionData.timeStamp + "\n\n"
+func (connectionData *connectionData) ToJson() (connectionDataString string){
+  connectionDataJson, err := json.Marshal(connectionData)
+  if err != nil {
+    fmt.Println(err)
+  }
+  connectionDataString = string(connectionDataJson)
   return
-}
-
-func (connectionData *connectionData) Print() {
-  connectionDataString := connectionData.getConnectionData()
-  fmt.Println(connectionDataString)
 }
 
 func sendHttpReq(url string, method string, wgY *sync.WaitGroup, connectionDataChannel *chan connectionData) {
@@ -78,29 +78,27 @@ func sendHttpReq(url string, method string, wgY *sync.WaitGroup, connectionDataC
 }
 
 func testConnection(url string, method string, maxTragetSessions int, connectionDataChannel *chan connectionData){
-  
+  defer wgX.Done()
+
   for newTargetSessions := 0; newTargetSessions < maxTragetSessions; newTargetSessions++ {
     wgY.Add(1)
     wgLogging.Add(1)
     go sendHttpReq(url, method, &wgY, connectionDataChannel)
   }
-
-  wgX.Done()
-  return 
 }
 
 func log(connectionDataChannel *chan connectionData){
 
 	for true {
 		connectionData := <- *connectionDataChannel
-		connectionData.Print()
+		fmt.Println(connectionData.ToJson())
     
-		if connectionData.connectionState == "active" {
-			fmt.Println(connectionData.url + " : " + "success\n\n")
-			connectionsReport = connectionsReport + connectionData.url + " : " + "success, timeStamp: " + connectionData.timeStamp + "\n\n"
+		if connectionData.ConnectionState == "active" {
+			fmt.Println(connectionData.Url + " : " + "success\n\n")
+			connectionsReport = connectionsReport + connectionData.Url + " : " + "success, timeStamp: " + connectionData.TimeStamp + "\n\n"
 		} else {
-      fmt.Println(connectionData.url + " : " + "failed\n\n")
-			connectionsReport = connectionsReport + connectionData.url + " : " + "failed, timeStamp: " + connectionData.timeStamp + "\n\n"
+      fmt.Println(connectionData.Url + " : " + "failed\n\n")
+			connectionsReport = connectionsReport + connectionData.Url + " : " + "failed, timeStamp: " + connectionData.TimeStamp + "\n\n"
 		}
 
     wgLogging.Done()
