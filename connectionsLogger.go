@@ -12,7 +12,9 @@ import (
 var urlsSlice []string
 var method string
 var maxTragetSessions int
-var wg sync.WaitGroup
+var wgX sync.WaitGroup
+var wgY sync.WaitGroup
+var wgLogging sync.WaitGroup
 var connectionDataChannel = make(chan connectionData)
 var connectionsReport string
 
@@ -33,7 +35,7 @@ func (connectionData *connectionData) Print() {
   fmt.Println(connectionDataString)
 }
 
-func sendHttpReq(url string, method string, wg *sync.WaitGroup, connectionDataChannel *chan connectionData) {
+func sendHttpReq(url string, method string, wgY *sync.WaitGroup, connectionDataChannel *chan connectionData) {
   client := &http.Client {
   }
 
@@ -41,7 +43,7 @@ func sendHttpReq(url string, method string, wg *sync.WaitGroup, connectionDataCh
   if err != nil {
     connectionData := connectionData{url, "disconnected", err.Error(), time.Now().String()}
     *connectionDataChannel <- connectionData
-    wg.Done()
+    wgY.Done()
     return
   }
 
@@ -49,7 +51,7 @@ func sendHttpReq(url string, method string, wg *sync.WaitGroup, connectionDataCh
   if err != nil {
     connectionData := connectionData{url, "disconnected", err.Error(), time.Now().String()}
     *connectionDataChannel <- connectionData
-    wg.Done()
+    wgY.Done()
     return
   }
   defer res.Body.Close()
@@ -58,30 +60,32 @@ func sendHttpReq(url string, method string, wg *sync.WaitGroup, connectionDataCh
   if err != nil {
     connectionData := connectionData{url, "disconnected", err.Error(), time.Now().String()}
     *connectionDataChannel <- connectionData
-    wg.Done()
+    wgY.Done()
     return
   }
   
   if strings.Contains(string(body), "EOF") || res.StatusCode > 400 {
     connectionData := connectionData{url, "disconnected", string(body) + "\n" + string(res.StatusCode), time.Now().String()}
     *connectionDataChannel <- connectionData
-	  wg.Done()
+	  wgY.Done()
     return
   }
   
   connectionData := connectionData{url, "active", "" , time.Now().String()}
   *connectionDataChannel <- connectionData
-  wg.Done()
+  wgY.Done()
   return
 }
 
 func testConnection(url string, method string, maxTragetSessions int, connectionDataChannel *chan connectionData){
   
   for newTargetSessions := 0; newTargetSessions < maxTragetSessions; newTargetSessions++ {
-	  wg.Add(1)
-    go sendHttpReq(url, method, &wg, connectionDataChannel)
+    wgY.Add(1)
+    wgLogging.Add(1)
+    go sendHttpReq(url, method, &wgY, connectionDataChannel)
   }
-  wg.Done()
+
+  wgX.Done()
   return 
 }
 
@@ -98,26 +102,26 @@ func log(connectionDataChannel *chan connectionData){
       fmt.Println(connectionData.url + " : " + "failed\n\n")
 			connectionsReport = connectionsReport + connectionData.url + " : " + "failed, timeStamp: " + connectionData.timeStamp + "\n\n"
 		}
+
+    wgLogging.Done()
 	}
 }
 
-func printReport(wg *sync.WaitGroup){
-  wg.Wait()
-  fmt.Println(connectionsReport)
-}
-
 func main() {
-  urlsSlice := []string{"http://10.155.0.113:22172/", "http://10.155.0.113:20667/"}
+  urlsSlice = []string{"http://10.155.0.113:22172/", "http://10.155.0.113:20667/"}
   method = "GET"
-  maxTragetSessions = 100
+  maxTragetSessions = 4
   
   go log(&connectionDataChannel)
-
   for _, url := range urlsSlice{
-    wg.Add(1)
+    wgX.Add(1)
     go testConnection(url, method, maxTragetSessions, &connectionDataChannel)
   }
+  
+  wgX.Wait()
+  wgY.Wait()
+  wgLogging.Wait()
 
-  printReport(&wg)
+  fmt.Println(connectionsReport)
 }
   
