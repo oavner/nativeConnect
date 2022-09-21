@@ -10,7 +10,7 @@ import (
 
 var url  string
 var method string
-var maxConnections int
+var maxTragetSessions int
 var wg sync.WaitGroup
 var testStatus string
 
@@ -51,10 +51,10 @@ func sendHttpReq(url string, method string, wg *sync.WaitGroup, connectionDataCh
   return
 }
 
-func testConnections(url string, method string, maxConnections int) (connectionsCounter int){
+func testConnection(url string, method string, maxTragetSessions int) (connectionsCounter int){
   connectionDataChannel := make(chan string)
 
-  for conn := 0; conn < maxConnections; conn++ {
+  for newTargetSessions := 0; newTargetSessions < maxTragetSessions; newTargetSessions++ {
 	  wg.Add(1)
     go sendHttpReq(url, method, &wg, &connectionDataChannel)
 	  go log(&connectionDataChannel)
@@ -79,8 +79,8 @@ func log(connectionDataChannel *chan string){
 func main() {
   url = "http://10.155.0.113:22172/"
   method = "GET"
-  maxConnections = 10
-  testConnections(url, method, maxConnections)
+  maxTragetSessions = 10
+  testConnection(url, method, maxTragetSessions)
   wg.Wait()
 
   fmt.Println("testStatus: " + testStatus)
