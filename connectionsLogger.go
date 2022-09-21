@@ -6,28 +6,49 @@ import (
   "io/ioutil"
   "sync"
   "strings"
+  "time"
 )
 
-var url  string
+var urlsSlice []string
 var method string
 var maxTragetSessions int
 var wg sync.WaitGroup
-var testStatus string
+var connectionDataChannel = make(chan connectionData)
+var connectionsReport string
 
-func sendHttpReq(url string, method string, wg *sync.WaitGroup, connectionDataChannel *chan string) {
+type connectionData struct {
+  url string
+  connectionState string
+  err string
+  timeStamp string
+}
+
+func (connectionData *connectionData) getConnectionData() (connectionDataString string){
+  connectionDataString = "url: " + connectionData.url + "\nconnectionState: " + connectionData.connectionState + "\nerror: " + connectionData.err + "\ntimeStamp: " + connectionData.timeStamp + "\n\n"
+  return
+}
+
+func (connectionData *connectionData) Print() {
+  connectionDataString := connectionData.getConnectionData()
+  fmt.Println(connectionDataString)
+}
+
+func sendHttpReq(url string, method string, wg *sync.WaitGroup, connectionDataChannel *chan connectionData) {
   client := &http.Client {
   }
 
   req, err := http.NewRequest(method, url, nil)
   if err != nil {
-    *connectionDataChannel <- "url:" + url + "\nconnectionState: disconnected\nerror: " + err.Error() + "\n\n"
+    connectionData := connectionData{url, "disconnected", err.Error(), time.Now().String()}
+    *connectionDataChannel <- connectionData
     wg.Done()
     return
   }
 
   res, err := client.Do(req)
   if err != nil {
-    *connectionDataChannel <- "url:" + url + "\nconnectionState: disconnected\nerror: " + err.Error() + "\n\n"
+    connectionData := connectionData{url, "disconnected", err.Error(), time.Now().String()}
+    *connectionDataChannel <- connectionData
     wg.Done()
     return
   }
@@ -35,54 +56,68 @@ func sendHttpReq(url string, method string, wg *sync.WaitGroup, connectionDataCh
 
   body, err := ioutil.ReadAll(res.Body)
   if err != nil {
-    *connectionDataChannel <- "url:" + url + "\nconnectionState: disconnected\nerror: " + err.Error() + "\n\n"
+    connectionData := connectionData{url, "disconnected", err.Error(), time.Now().String()}
+    *connectionDataChannel <- connectionData
     wg.Done()
     return
   }
   
-  if strings.Contains(string(body), "EOF") || res.StatusCode > 400 { 
-    *connectionDataChannel <- "url:" + url + "\nconnectionState: disconnected\nerror: " + string(body) + "\nstatusCode: " + string(res.StatusCode) + "\n\n"
-	wg.Done()
+  if strings.Contains(string(body), "EOF") || res.StatusCode > 400 {
+    connectionData := connectionData{url, "disconnected", string(body) + "\n" + string(res.StatusCode), time.Now().String()}
+    *connectionDataChannel <- connectionData
+	  wg.Done()
     return
   }
   
-  *connectionDataChannel <- "url: " + url + "\nconnectionState: active\n\n"
+  connectionData := connectionData{url, "active", "" , time.Now().String()}
+  *connectionDataChannel <- connectionData
   wg.Done()
   return
 }
 
-func testConnection(url string, method string, maxTragetSessions int) (connectionsCounter int){
-  connectionDataChannel := make(chan string)
-
+func testConnection(url string, method string, maxTragetSessions int, connectionDataChannel *chan connectionData){
+  
   for newTargetSessions := 0; newTargetSessions < maxTragetSessions; newTargetSessions++ {
 	  wg.Add(1)
-    go sendHttpReq(url, method, &wg, &connectionDataChannel)
-	  go log(&connectionDataChannel)
+    go sendHttpReq(url, method, &wg, connectionDataChannel)
   }
+  wg.Done()
   return 
 }
 
-func log(connectionDataChannel *chan string){
+func log(connectionDataChannel *chan connectionData){
+
 	for true {
 		connectionData := <- *connectionDataChannel
-		fmt.Println(connectionData)
-		if !strings.Contains(connectionData, "disconnected") {
-			fmt.Println("Successfully created a connection\n\n")
-			testStatus = "success"
+		connectionData.Print()
+    
+		if connectionData.connectionState == "active" {
+			fmt.Println(connectionData.url + " : " + "success\n\n")
+			connectionsReport = connectionsReport + connectionData.url + " : " + "success, timeStamp: " + connectionData.timeStamp + "\n\n"
 		} else {
-			fmt.Println("Failed to create a connection\n\n")
-			testStatus = "failed"
+      fmt.Println(connectionData.url + " : " + "failed\n\n")
+			connectionsReport = connectionsReport + connectionData.url + " : " + "failed, timeStamp: " + connectionData.timeStamp + "\n\n"
 		}
 	}
 }
 
-func main() {
-  url = "http://10.155.0.113:22172/"
-  method = "GET"
-  maxTragetSessions = 10
-  testConnection(url, method, maxTragetSessions)
+func printReport(wg *sync.WaitGroup){
   wg.Wait()
+  fmt.Println(connectionsReport)
+}
 
-  fmt.Println("testStatus: " + testStatus)
+func main() {
+  urlsSlice := []string{"http://10.155.0.113:22172/", "http://10.155.0.113:20667/"}
+  method = "GET"
+  maxTragetSessions = 100
+  
+  go log(&connectionDataChannel)
+
+  for _, url := range urlsSlice{
+    wg.Add(1)
+    go testConnection(url, method, maxTragetSessions, &connectionDataChannel)
+  }
+
+  printReport(&wg)
 }
   
