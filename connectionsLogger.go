@@ -19,6 +19,19 @@ var wgLogging sync.WaitGroup
 var connectionDataChannel = make(chan connectionData)
 var connectionsReport string
 
+type error interface {
+  Error() string
+}
+
+type httpError struct {
+  ResBody string
+  ResStatusCode int
+}
+
+func (e *httpError) Error() string {
+  return string(e.ResStatusCode)
+}
+
 type connectionData struct {
   Url string `json:"url"`
   ConnectionState string `json:"connection_state"`
@@ -26,13 +39,18 @@ type connectionData struct {
   TimeStamp string `json:"timestamp"`
 }
 
-func (connectionData *connectionData) ToJson() (connectionDataString string){
+func (connectionData *connectionData) ToJson() string {
   connectionDataJson, err := json.Marshal(connectionData)
   if err != nil {
     fmt.Println(err)
   }
-  connectionDataString = string(connectionDataJson)
-  return
+  return string(connectionDataJson)
+}
+
+func handleConnectionError(url string, err error, wgY *sync.WaitGroup, connectionDataChannel *chan connectionData){
+  connectionData := connectionData{url, "disconnected", err.Error(), time.Now().String()}
+  *connectionDataChannel <- connectionData
+  wgY.Done()
 }
 
 func sendHttpReq(url string, method string, wgY *sync.WaitGroup, connectionDataChannel *chan connectionData) {
@@ -41,33 +59,25 @@ func sendHttpReq(url string, method string, wgY *sync.WaitGroup, connectionDataC
 
   req, err := http.NewRequest(method, url, nil)
   if err != nil {
-    connectionData := connectionData{url, "disconnected", err.Error(), time.Now().String()}
-    *connectionDataChannel <- connectionData
-    wgY.Done()
+    handleConnectionError(url, err, wgY, connectionDataChannel)
     return
   }
 
   res, err := client.Do(req)
   if err != nil {
-    connectionData := connectionData{url, "disconnected", err.Error(), time.Now().String()}
-    *connectionDataChannel <- connectionData
-    wgY.Done()
+    handleConnectionError(url, err, wgY, connectionDataChannel)
     return
   }
   defer res.Body.Close()
 
   body, err := ioutil.ReadAll(res.Body)
   if err != nil {
-    connectionData := connectionData{url, "disconnected", err.Error(), time.Now().String()}
-    *connectionDataChannel <- connectionData
-    wgY.Done()
+    handleConnectionError(url, err, wgY, connectionDataChannel)
     return
   }
   
   if strings.Contains(string(body), "EOF") || res.StatusCode > 400 {
-    connectionData := connectionData{url, "disconnected", string(body) + "\n" + string(res.StatusCode), time.Now().String()}
-    *connectionDataChannel <- connectionData
-	  wgY.Done()
+    handleConnectionError(url, &httpError{string(body), res.StatusCode}, wgY, connectionDataChannel)
     return
   }
   
