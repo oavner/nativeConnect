@@ -10,16 +10,10 @@ import (
   "os"
   "encoding/json"
   "strconv"
+  "reflect"
 )
 
-var urlsSlice []string
-var method string
-var maxTragetSessions int
-var wgX sync.WaitGroup
-var wgY sync.WaitGroup
-var wgLogging sync.WaitGroup
-var connectionDataChannel = make(chan connectionData)
-var connectionsReport string
+//var connectionsReport string 
 
 type error interface {
   Error() string
@@ -89,28 +83,27 @@ func sendHttpReq(url string, method string, wgY *sync.WaitGroup, connectionDataC
   return
 }
 
-func testConnection(url string, method string, maxTragetSessions int, connectionDataChannel *chan connectionData){
+func testConnection(url string, method string, maxTragetSessions int, connectionDataChannel *chan connectionData, wgX *sync.WaitGroup, wgY *sync.WaitGroup, wgLogging *sync.WaitGroup){
   defer wgX.Done()
 
   for newTargetSessions := 0; newTargetSessions < maxTragetSessions; newTargetSessions++ {
     wgY.Add(1)
     wgLogging.Add(1)
-    go sendHttpReq(url, method, &wgY, connectionDataChannel)
+    go sendHttpReq(url, method, wgY, connectionDataChannel)
   }
 }
 
-func log(connectionDataChannel *chan connectionData){
-
+func log(connectionDataChannel *chan connectionData, connectionsReport *string, wgLogging *sync.WaitGroup){
 	for true {
 		connectionData := <- *connectionDataChannel
 		fmt.Println(connectionData.ToJson())
     
 		if connectionData.ConnectionState == "active" {
 			fmt.Println(connectionData.Url + " : " + "success\n\n")
-			connectionsReport = connectionsReport + connectionData.Url + " : " + "success, timeStamp: " + connectionData.TimeStamp + "\n\n"
+			*connectionsReport += connectionData.Url + " : " + "success, timeStamp: " + connectionData.TimeStamp + "\n\n"
 		} else {
       fmt.Println(connectionData.Url + " : " + "failed\n\n")
-			connectionsReport = connectionsReport + connectionData.Url + " : " + "failed, timeStamp: " + connectionData.TimeStamp + "\n\n"
+			*connectionsReport += connectionData.Url + " : " + "failed, timeStamp: " + connectionData.TimeStamp + "\n\n"
 		}
 
     wgLogging.Done()
@@ -123,14 +116,20 @@ func jsonStringToSlice(str string) (slc []string) {
 }
 
 func main() {
+  var wgX sync.WaitGroup
+  var wgY sync.WaitGroup
+  var wgLogging sync.WaitGroup
+  var connectionsReport string
+  var connectionDataChannel = make(chan connectionData)
+
   urlsSlice := jsonStringToSlice(os.Getenv("URLS"))
-  method = os.Getenv("METHOD")
+  method := os.Getenv("METHOD")
   maxTragetSessions, _ := strconv.Atoi(os.Getenv("MAX_SESSIONS")) 
   
-  go log(&connectionDataChannel)
+  go log(&connectionDataChannel, &connectionsReport, &wgLogging)
   for _, url := range urlsSlice{
     wgX.Add(1)
-    go testConnection(url, method, maxTragetSessions, &connectionDataChannel)
+    go testConnection(url, method, maxTragetSessions, &connectionDataChannel, &wgX, &wgY, &wgLogging)
   }
   
   wgX.Wait()
