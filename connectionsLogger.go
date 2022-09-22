@@ -7,7 +7,9 @@ import (
   "sync"
   "strings"
   "time"
+  "os"
   "encoding/json"
+  "strconv"
 )
 
 var urlsSlice []string
@@ -115,10 +117,15 @@ func log(connectionDataChannel *chan connectionData){
 	}
 }
 
+func jsonStringToSlice(str string) (slc []string) {
+  json.Unmarshal([]byte(str), &slc)
+  return
+}
+
 func main() {
-  urlsSlice = []string{"http://10.155.0.113:22172/", "http://10.155.0.113:20667/"}
-  method = "GET"
-  maxTragetSessions = 4
+  urlsSlice := jsonStringToSlice(os.Getenv("URLS"))
+  method = os.Getenv("METHOD")
+  maxTragetSessions, _ := strconv.Atoi(os.Getenv("MAX_SESSIONS")) 
   
   go log(&connectionDataChannel)
   for _, url := range urlsSlice{
