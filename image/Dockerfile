@@ -1,8 +1,8 @@
 FROM golang:1.16-alpine
 WORKDIR /app
-COPY go.mod ./
+COPY ./image/go.mod ./
 RUN go mod download
 
-COPY *.go ./
+COPY ./image/*.go ./
 RUN go build -o ./connectionsLogger
 CMD [ "./connectionsLogger" ]
