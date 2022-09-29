@@ -21,12 +21,19 @@ Using the native connect of Nomad instead of Consul also comes with minor networ
 ### Bulding The Connections Logger
 The connections logger is a simple golang program that can send multiple http requests to a slice of URLs concurrently. Using this tool we could set our desired environment variables in order to test a single or multiple connections to a single or multiple urls, and since the requests are sent concurrently there is no need to worry about runtime, it happens in a second.
 
-Here is an example for testing multiple connections to multiple urls (4 sessions opened for each url):
+Here is an example for env variables set to test multiple connections to multiple urls (4 sessions opened for each url): 
+
+![Environment variables that make the connection logger check multiple connections to mutiple urls concurrently](/images/env_vars.png)
 
 
 The logger posts each connection data logs in `json` to `stdout` for now but it could be changed to `stderr` later on using the log golang module:
 
+![Connections logger log output format](/images/log.png)
+
+
 At the end of each run the looger also posts a simple human readable report that summs up all the connections state:
+
+![A report the connection logger prints at the end of each run](/images/report.png)
 
 A more complexted logic could be handled in the report phase later on such as how many of the requests for a single url succeeded in ratio to how many were sent. Notice that the connections logger is desined as a croned task that should run in intervals, this design could be changed to run as an infinite loop that posts logs and reports all the time.
 
