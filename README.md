@@ -18,4 +18,15 @@ Using the native connect of Nomad instead of Consul also comes with minor networ
 1. Moving to a vxlan architecture. Instead of sidecar proxy containers connected to each task, all the containers running with the Native Connect share the same overlay network and theres no need for another sidecar proxy containers at all. That means less resource exhaustion **validate**
 2. No more cherry picked ACL's for controlling each service's ingress or egress traffic. No sidecar proxies means less security- as mentioned before all running containers share the same overlay network and theoretically can communicate freely with each other.
 
+### Bulding The Connections Logger
+The connections logger is a simple golang program that can send multiple http requests to a slice of URLs concurrently. Using this tool we could set our desired environment variables in order to test a single or multiple connections to a single or multiple urls, and since the requests are sent concurrently there is no need to worry about runtime, it happens in a second.
+
+Here is an example for testing multiple connections to multiple urls (4 sessions opened for each url):
+
+
+The logger posts each connection data logs in `json` to `stdout` for now but it could be changed to `stderr` later on using the log golang module:
+
+At the end of each run the looger also posts a simple human readable report that summs up all the connections state:
+
+A more complexted logic could be handled in the report phase later on such as how many of the requests for a single url succeeded in ratio to how many were sent. Notice that the connections logger is desined as a croned task that should run in intervals, this design could be changed to run as an infinite loop that posts logs and reports all the time.
 
