@@ -31,6 +31,7 @@ func (e *httpError) Error() string {
 
 // Struct that holds the metadata about the connection. used for logging connection state and errors.
 type connectionData struct {
+  Source string `json:"source"`
   Url string `json:"url"`
   ConnectionState string `json:"connection_state"`
   Err string `json:"error"`
@@ -47,10 +48,21 @@ func (connectionData *connectionData) ToJson() string {
 }
 
 // Sends connectionData to connectionDataStream and sends Done() call to a given waitGroup.
-func handleConnectionError(url string, err error, wgY *sync.WaitGroup, connectionDataChannel *chan connectionData){
-  connectionData := connectionData{url, "disconnected", err.Error(), time.Now().String()}
+func handleConnectionError(sourceIP string, url string, err error, wgY *sync.WaitGroup, connectionDataChannel *chan connectionData){
+  connectionData := connectionData{sourceIP, url, "disconnected", err.Error(), time.Now().String()}
   *connectionDataChannel <- connectionData
   wgY.Done()
+}
+
+func getSourceIP(r *http.Request) string {
+  IPAddress := r.Header.Get("X-Real-Ip")
+  if IPAddress == "" {
+      IPAddress = r.Header.Get("X-Forwarded-For")
+  }
+  if IPAddress == "" {
+      IPAddress = r.RemoteAddr
+  }
+  return IPAddress
 }
 
 // Sends http req to a given url in a certain method and raises h handleConnectionError for any type of error 
@@ -60,30 +72,31 @@ func sendHttpReq(url string, method string, wgY *sync.WaitGroup, connectionDataC
   }
 
   req, err := http.NewRequest(method, url, nil)
+  sourceIP := getSourceIP(req)
   if err != nil {
-    handleConnectionError(url, err, wgY, connectionDataChannel)
+    handleConnectionError(sourceIP, url, err, wgY, connectionDataChannel)
     return
   }
 
   res, err := client.Do(req)
   if err != nil {
-    handleConnectionError(url, err, wgY, connectionDataChannel)
+    handleConnectionError(sourceIP, url, err, wgY, connectionDataChannel)
     return
   }
   defer res.Body.Close()
 
   body, err := ioutil.ReadAll(res.Body)
   if err != nil {
-    handleConnectionError(url, err, wgY, connectionDataChannel)
+    handleConnectionError(sourceIP, url, err, wgY, connectionDataChannel)
     return
   }
   
   if strings.Contains(string(body), "EOF") || res.StatusCode > 400 {
-    handleConnectionError(url, &httpError{string(body), res.StatusCode}, wgY, connectionDataChannel)
+    handleConnectionError(sourceIP, url, &httpError{string(body), res.StatusCode}, wgY, connectionDataChannel)
     return
   }
   
-  connectionData := connectionData{url, "active", "" , time.Now().String()}
+  connectionData := connectionData{sourceIP, url, "active", "" , time.Now().String()}
   *connectionDataChannel <- connectionData
   wgY.Done()
   return
