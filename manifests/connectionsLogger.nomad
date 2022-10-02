@@ -1,7 +1,7 @@
-job "nginx" {
+job "connectionsLogger" {
   datacenters = ["dc1"]
   type        = "sysbatch"
-  priority    = 70
+  // priority    = 70
 
   reschedule {
     delay          = "30s"
@@ -9,7 +9,15 @@ job "nginx" {
     unlimited      = true
   }
 
-  group "nginx" {
+   periodic {
+    // Launch every 20 seconds
+    cron = "*/20 * * * * * *"
+
+    // Allow overlapping runs.
+    prohibit_overlap = false
+  }
+
+  group "connectionsLoggers" {
     count = 1
 
     restart {
@@ -27,7 +35,7 @@ job "nginx" {
       driver = "docker"
 
       config {
-        image       = "ghcr.io/oavner/connections-logger:82fa42b7c7bc892e37af28802de4021408ebe640"
+        image       = "ghcr.io/oavner/connections-logger:3023d3a1258e3c5b6b5f858ef87906363cb329fb"
       }
 
       resources {
