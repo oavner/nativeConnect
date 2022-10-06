@@ -29,5 +29,5 @@ jobs:
           context: .
           push: true
           tags: |
-            ghcr.io/oavner/connections-logger:${{ github.sha }}
+            ghcr.io/oavner/dummy-metrics-app:${{ github.sha }}
 
