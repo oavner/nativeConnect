@@ -1,7 +1,7 @@
 job "connectionsLogger" {
-  datacenters = ["dc1"]
+  datacenters = ["demo"]
   type        = "sysbatch"
-  // priority    = 70
+  priority    = 70
 
   reschedule {
     delay          = "30s"
@@ -34,8 +34,14 @@ job "connectionsLogger" {
     task "connectionsLogger" {
       driver = "docker"
 
+      env {
+        METHOD = "GET"
+        URLS = '["http://10.155.0.113:22172/", "http://10.155.0.113:20667/"]'
+        MAX_SESSIONS = "4"
+      }
+
       config {
-        image       = "ghcr.io/oavner/connections-logger:3023d3a1258e3c5b6b5f858ef87906363cb329fb"
+        image       = "ghcr.io/oavner/connections-logger:77be1b9233b2bc7a1cbdc29c91b8e88844c3bef8"
       }
 
       resources {

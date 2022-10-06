@@ -162,8 +162,4 @@ func main() {
   wgLogging.Wait()
 
   fmt.Println(connectionsReport)
-
-  // just for test
-  fmt.Println("sleeping")
-  time.Sleep(20 * time.Second)
 }
