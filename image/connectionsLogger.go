@@ -151,7 +151,10 @@ func main() {
   method := os.Getenv("METHOD")
   maxTragetSessions, _ := strconv.Atoi(os.Getenv("MAX_SESSIONS")) 
   
+  // Start Logger
   go log(&connectionDataChannel, &connectionsReport, &wgLogging)
+
+  // Create connections for each url
   for _, url := range urlsSlice{
     wgX.Add(1)
     go testConnection(url, method, maxTragetSessions, &connectionDataChannel, &wgX, &wgY, &wgLogging)
